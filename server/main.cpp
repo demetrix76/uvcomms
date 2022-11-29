@@ -62,9 +62,26 @@ void serverFunction(std::promise<std::shared_ptr<uvw::AsyncHandle>> aInitPromise
         return;
     }
     
-    std::cout << "Server loop running\n";
-    theLoop->run();
-    std::cout << "Server loop done\n";
+    commlib::ipc_lock lockfile;
+    std::lock_guard lk(lockfile);
+    
+    commlib::ipc_sem theSemaphore;
+    // 'normalize' the semaphore, draining all the potential sem_post's from the past
+    while(theSemaphore.try_wait()) {}
+    
+    theSemaphore.post();
+    try
+    {
+        std::cout << "Server loop running\n";
+        theLoop->run();
+        std::cout << "Server loop done\n";
+        theSemaphore.try_wait();
+    }
+    catch(...)
+    {
+        theSemaphore.try_wait();
+        throw;
+    }
 }
 
 int main(int, char*[])

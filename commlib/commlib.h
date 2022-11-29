@@ -22,6 +22,7 @@ using ipc_lock_data_t = void*; // actually, HANDLE
 
 class ipc_lock
 {
+public:
     ipc_lock();
     ~ipc_lock();
     

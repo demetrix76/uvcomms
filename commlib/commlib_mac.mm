@@ -63,14 +63,14 @@ ipc_lock::ipc_lock()
     std::string fn = lockFileName();
     int fd;
     do {
-        fd = open(fn.c_str(), O_CREAT | O_CLOEXEC | O_RDWR, 0777);
+        fd = open(fn.c_str(), O_CREAT | O_CLOEXEC | O_RDWR, 0666);
     } while(fd < 0 && errno == EINTR);
     
     if(fd < 0)
         throw std::runtime_error("Cannot create or open the lock file");
     
     // the lock file may persist across runs from different users; better keep it world-writable
-    fchmod(fd, 0777);
+    fchmod(fd, 0666);
     
     mData = fd;
     mValid = true;
@@ -134,15 +134,15 @@ void ipc_lock::unlock()
 
 ipc_sem::ipc_sem()
 {
-    constexpr char const *semaphore_name = "/com.astutegraphics.envoy.availability";
+    constexpr char const *semaphore_name = "/com.astute.envoy.avail";
     
     mode_t oldmask = umask(0);
     sem_t *theSem = SEM_FAILED;
     do {
         theSem = sem_open(semaphore_name, O_CREAT, 0777, 0);
     } while(theSem == SEM_FAILED && errno == EINTR);
+    errno_t err = errno;
     umask(oldmask);
-    
     if(theSem == SEM_FAILED)
         throw std::runtime_error("Unable to create a semaphore object");
     

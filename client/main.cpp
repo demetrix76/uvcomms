@@ -74,42 +74,63 @@ void Client::run(std::promise<std::shared_ptr<uvw::AsyncHandle>> aInitPromise)
     
     aInitPromise.set_value(asyncHandle);
     
-    std::shared_ptr<uvw::PipeHandle> connection = theLoop->resource<uvw::PipeHandle>();
-    asyncHandle->data(connection);
+    while(true)
+    {
+        std::cout << "Waiting for the server to become available...\n";
+        
+        commlib::ipc_lock lockfile;
+        commlib::ipc_sem theSemaphore;
+        
+        if(lockfile.try_lock()) {
+            while(theSemaphore.try_wait()) {}; // an exception will release the lock file should it happen
+        }
+        lockfile.unlock();
+        
+        theSemaphore.wait(0);
+        theSemaphore.post();
+        std::cout << "Connecting...\n";
     
-    connection->on<uvw::ErrorEvent>([](uvw::ErrorEvent const & aErrorEvent, uvw::PipeHandle & aConnection){
-        std::cerr << "Client error: " << aErrorEvent.what() << std::endl;
-        aConnection.close();
-        aConnection.loop().stop();
-    });
-    
-    connection->on<uvw::CloseEvent>([asyncHandle](uvw::CloseEvent const &, uvw::PipeHandle & aHandle){
-        std::cout << "CloseEvent\n";
-        asyncHandle->data(nullptr);
-    });
-    
-    connection->on<uvw::ConnectEvent>([](uvw::ConnectEvent const &, uvw::PipeHandle & aConnection){
-        std::cout << "Connected\n";
-    });
-    
-    connection->on<uvw::EndEvent>([theLoop](uvw::EndEvent const &, uvw::PipeHandle & aConnection){
-        std::cout << "The server has closed the connection\n";
-        aConnection.close();
-        aConnection.loop().stop();
-    });
-    
-    connection->on<uvw::DataEvent>([](uvw::DataEvent const & aDataEvent, uvw::PipeHandle & aConnection){
-        std::cout << "Data from the server...\n";
-    });
-    
-    connection->on<uvw::WriteEvent>([](uvw::WriteEvent const & aWriteEvent, uvw::PipeHandle & aConnection){
-        std::cout << "WriteEvent\n";
-    });
-    
-    connection->connect(commlib::pipeName(false));
-    
-    theLoop->run();
-    std::cout << "Disconnected\n";
+        std::shared_ptr<uvw::PipeHandle> connection = theLoop->resource<uvw::PipeHandle>();
+        asyncHandle->data(connection);
+        
+        connection->on<uvw::ErrorEvent>([](uvw::ErrorEvent const & aErrorEvent, uvw::PipeHandle & aConnection){
+            std::cerr << "Client error: " << aErrorEvent.what() << std::endl;
+            aConnection.close();
+            aConnection.loop().stop();
+        });
+        
+        connection->on<uvw::CloseEvent>([asyncHandle](uvw::CloseEvent const &, uvw::PipeHandle & aHandle){
+            std::cout << "CloseEvent\n";
+            asyncHandle->data(nullptr);
+        });
+        
+        connection->on<uvw::ConnectEvent>([](uvw::ConnectEvent const &, uvw::PipeHandle & aConnection){
+            std::cout << "Connected\n";
+            aConnection.read();
+        });
+        
+        connection->on<uvw::EndEvent>([theLoop](uvw::EndEvent const &, uvw::PipeHandle & aConnection){
+            std::cout << "The server has closed the connection\n";
+            aConnection.close();
+            aConnection.loop().stop();
+        });
+        
+        connection->on<uvw::DataEvent>([](uvw::DataEvent const & aDataEvent, uvw::PipeHandle & aConnection){
+            std::cout << "Data from the server...\n";
+        });
+        
+        connection->on<uvw::WriteEvent>([](uvw::WriteEvent const & aWriteEvent, uvw::PipeHandle & aConnection){
+            std::cout << "WriteEvent\n";
+        });
+        
+        connection->connect(commlib::pipeName(false));
+        
+        theLoop->run();
+        std::cout << "Disconnected\n";
+        
+        std::cout << "Cooldown...\n";
+        std::this_thread::sleep_for(std::chrono::seconds(5));
+    }
 }
 
 void Client::onAsync(uvw::AsyncHandle & aHandle)
