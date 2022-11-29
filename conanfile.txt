@@ -1,0 +1,5 @@
+[requires]
+uvw/v2.12.1_libuv_v1.44@agn2/stable
+
+[generators]
+cmake_paths
