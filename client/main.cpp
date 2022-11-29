@@ -83,6 +83,11 @@ void Client::run(std::promise<std::shared_ptr<uvw::AsyncHandle>> aInitPromise)
         aConnection.loop().stop();
     });
     
+    connection->on<uvw::CloseEvent>([asyncHandle](uvw::CloseEvent const &, uvw::PipeHandle & aHandle){
+        std::cout << "CloseEvent\n";
+        asyncHandle->data(nullptr);
+    });
+    
     connection->on<uvw::ConnectEvent>([](uvw::ConnectEvent const &, uvw::PipeHandle & aConnection){
         std::cout << "Connected\n";
     });
@@ -118,13 +123,17 @@ void Client::onAsync(uvw::AsyncHandle & aHandle)
     for(Command const & cmd: mCopiedCommands)
         std::visit(overloaded{
             [&](CommandStop) {
-                connection->close();
+                if(connection) {
+                    connection->close();
+                }
                 aHandle.loop().stop();
             },
             [&](CommandMessage cmd){
-                std::unique_ptr<char[]> buffer(new char[cmd.message.size()]);
-                std::copy(cmd.message.begin(), cmd.message.end(), buffer.get());
-                connection->write(std::move(buffer), cmd.message.size());
+                if(connection) {
+                    std::unique_ptr<char[]> buffer(new char[cmd.message.size()]);
+                    std::copy(cmd.message.begin(), cmd.message.end(), buffer.get());
+                    connection->write(std::move(buffer), cmd.message.size());
+                }
             }
         }, cmd);
     mCopiedCommands.clear();
