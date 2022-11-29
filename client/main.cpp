@@ -41,6 +41,8 @@ public:
     
     void postCommand(Command && aCommand)
     {
+        // certain commands should probably be rejected while we're waiting for the server
+        // also it would be good to return the command result
         {
             std::lock_guard lk(mMx);
             mPendingCommands.emplace_back(std::move(aCommand));
@@ -77,6 +79,9 @@ void Client::run(std::promise<std::shared_ptr<uvw::AsyncHandle>> aInitPromise)
     while(true)
     {
         std::cout << "Waiting for the server to become available...\n";
+        
+        // lockfile/semaphore errors will simply crash the process
+        // production code should handle these gracefully
         
         commlib::ipc_lock lockfile;
         commlib::ipc_sem theSemaphore;
